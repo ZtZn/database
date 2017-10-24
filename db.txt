@@ -1,0 +1,216 @@
+#Tables
+
+
+CREATE TABLE "books" (
+    "book_id" varchar(50) NOT NULL ,
+    "awards_text" TEXT NOT NULL,
+    "marc_enc_level" varchar NOT NULL,
+    "summary" TEXT NOT NULL,
+    "isbn10" integer NOT NULL UNIQUE,
+    "isbn13" integer NOT NULL UNIQUE,
+    "dewey_normal" integer NOT NULL,
+    "dewey_decimal" DECIMAL NOT NULL,
+    "title" varchar(60) NOT NULL,
+    "title_long" varchar(200) NOT NULL,
+    "title_latin" varchar(80) NOT NULL,
+    "language" varchar(3) NOT NULL,
+    "publisher_id" varchar NOT NULL,
+    "physical_description" varchar NOT NULL,
+    "edition_info" TEXT NOT NULL,
+    "urls_text" TEXT NOT NULL,
+    "lcc_number" integer NOT NULL,
+    "notes" TEXT NOT NULL,
+    CONSTRAINT books_pk PRIMARY KEY ("book_id")
+) WITH (
+  OIDS=FALSE
+);
+
+
+CREATE TABLE "autors" (
+    "autor_id" varchar(70) NOT NULL,
+    "dates" timestamp,
+    "name" varchar(50) NOT NULL,
+    "name_latin" varchar(50) ,
+    "first_name" varchar(50) ,
+    "last_name" varchar(50) ,
+    "book_count" integer default 0,
+    CONSTRAINT autors_pk PRIMARY KEY ("autor_id")
+) WITH (
+  OIDS=FALSE
+);
+
+
+CREATE TABLE "publishers" (
+    "publisher_id" varchar(50) NOT NULL,
+    "name" varchar(50),
+    "name_latin" varchar(50) ,
+    "location" varchar(50) ,
+    "book_count" integer NOT NULL DEFAULT '0',
+    "category_id" varchar(50) NOT NULL,
+    CONSTRAINT publishers_pk PRIMARY KEY ("publisher_id")
+) WITH (
+  OIDS=FALSE
+);
+
+
+CREATE TABLE "subjects" (
+    "subject_id" varchar(50) NOT NULL,
+    "name" varchar(50),
+    "name_latin" varchar(50),
+    "books_count" integer NOT NULL,
+    CONSTRAINT subjects_pk PRIMARY KEY ("subject_id")
+) WITH (
+  OIDS=FALSE
+);
+
+
+
+CREATE TABLE "categories" (
+    "category_id" varchar(50) NOT NULL,
+    "name" varchar(50),
+    "name_latin" varchar(50),
+    "parent_id" varchar(50) NOT NULL,
+    CONSTRAINT categories_pk PRIMARY KEY ("category_id")
+) WITH (
+  OIDS=FALSE
+);
+
+# Joined tables
+
+CREATE TABLE "autors_and_categories" (
+    "autor_id" varchar NOT NULL,
+    "category_id" varchar NOT NULL
+) WITH (
+  OIDS=FALSE
+);
+
+CREATE TABLE "autors_and_books" (
+    "autor_id" varchar NOT NULL,
+    "book_id" varchar NOT NULL
+) WITH (
+  OIDS=FALSE
+);
+
+CREATE TABLE "autors_and_subjects" (
+    "autor_id" varchar NOT NULL,
+    "subject_id" varchar NOT NULL
+) WITH (
+  OIDS=FALSE
+);
+
+CREATE TABLE "books_and_subjects" (
+    "book_id" varchar NOT NULL,
+    "subject_id" varchar NOT NULL
+) WITH (
+  OIDS=FALSE
+);
+
+#Public keys
+
+ALTER TABLE "categories" ADD CONSTRAINT "categories_fk0" FOREIGN KEY ("parent_id") REFERENCES "categories"("category_id");
+
+ALTER TABLE "publishers" ADD CONSTRAINT "publishers_fk0" FOREIGN KEY ("category_id") REFERENCES "categories"("category_id");
+ALTER TABLE "autors_and_categories" ADD CONSTRAINT "autors_and_categories_fk0" FOREIGN KEY ("autor_id") REFERENCES "autors"("autor_id");
+ALTER TABLE "autors_and_categories" ADD CONSTRAINT "autors_and_categories_fk1" FOREIGN KEY ("category_id") REFERENCES "categories"("category_id");
+
+
+ALTER TABLE "books" ADD CONSTRAINT "books_fk0" FOREIGN KEY ("publisher_id") REFERENCES "publishers"("publisher_id");
+
+
+ALTER TABLE "autors_and_books" ADD CONSTRAINT "autors_and_books_fk0" FOREIGN KEY ("autor_id") REFERENCES "autors"("autor_id");
+ALTER TABLE "autors_and_books" ADD CONSTRAINT "autors_and_books_fk1" FOREIGN KEY ("book_id") REFERENCES "books"("book_id");
+
+ALTER TABLE "autors_and_subjects" ADD CONSTRAINT "autors_and_subjects_fk0" FOREIGN KEY ("autor_id") REFERENCES "autors"("autor_id");
+ALTER TABLE "autors_and_subjects" ADD CONSTRAINT "autors_and_subjects_fk1" FOREIGN KEY ("subject_id") REFERENCES "subjects"("subject_id");
+
+ALTER TABLE "books_and_subjects" ADD CONSTRAINT "books_and_subjects_fk0" FOREIGN KEY ("book_id") REFERENCES "books"("book_id");
+ALTER TABLE "books_and_subjects" ADD CONSTRAINT "books_and_subjects_fk1" FOREIGN KEY ("subject_id") REFERENCES "subjects"("subject_id");
+
+#Index
+
+CREATE INDEX categories_idx_name ON categories (name);
+
+CREATE INDEX publishers_idx_name ON publishers (name);
+
+CREATE INDEX subjects_idx_name ON subjects (name);
+
+CREATE INDEX books_idx_title ON books (title);
+CREATE INDEX books_idx_isbn10 ON books (isbn10);
+CREATE INDEX books_idx_isbn13 ON books (isbn13);
+
+CREATE INDEX autors_idx_fio ON autors (name, first_name, last_name);
+
+Листинг 1.8 Создание представлений
+
+create view books_light as select  book_id, title, isbn13, language, publishers.name
+from books ,publishers
+where books.publisher_id=publishers.publisher_id ;
+
+#Functions
+
+CREATE FUNCTION getAutor (character) RETURNS varchar AS '
+DECLARE
+i varchar;
+BEGIN
+select name from autors into i where book_count>=10;
+return i;
+END;
+' LANGUAGE plpgsql;
+create or replace FUNCTION tr_publisher_book_count_ins_after() RETURNS trigger as'
+    BEGIN
+     update publishers set book_count=book_count+1 where publisher_id=new.publisher_id;
+     RETURN old;
+    END;
+    ' LANGUAGE plpgsql;
+create or replace FUNCTION tr_subjects_book_count_ins_after() RETURNS trigger as'
+    BEGIN
+     update subjects set books_count=books_count+1 where subjects_id=new.subjects_id;
+     RETURN old;
+    END;
+    ' LANGUAGE plpgsql;
+
+create or replace FUNCTION tr_autors_book_count_ins_after() RETURNS trigger as'
+    BEGIN
+     update autors set book_count=book_count+1 where autor_id=new.autor_id;
+     RETURN old;
+    END;
+    ' LANGUAGE plpgsql;
+
+# Triggers
+
+ CREATE trigger tr_publisher_book_count_ins_after
+ after insert on books FOR EACH ROW
+ EXECUTE PROCEDURE tr_publisher_book_count_ins_after();
+
+ CREATE trigger tr_subjects_book_ins_after
+ after insert on books_and_subjects FOR EACH ROW
+ EXECUTE PROCEDURE tr_subjects_book_count_ins_after();
+
+
+ CREATE trigger tr_autors_ins_after
+ after insert on autors_and_books FOR EACH ROW
+ EXECUTE PROCEDURE tr_autors_book_count_ins_after();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
