@@ -140,13 +140,13 @@ CREATE INDEX books_idx_isbn13 ON books (isbn13);
 
 CREATE INDEX autors_idx_fio ON autors (name, first_name, last_name);
 
-Листинг 1.8 Создание представлений
+# Views
 
 create view books_light as select  book_id, title, isbn13, language, publishers.name
 from books ,publishers
 where books.publisher_id=publishers.publisher_id ;
 
-#Functions
+# Functions
 
 CREATE FUNCTION getAutor (character) RETURNS varchar AS '
 DECLARE
